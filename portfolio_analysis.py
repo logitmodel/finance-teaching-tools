@@ -103,12 +103,12 @@ def main():
                 st.error(f"資料抓取失敗: {e}")
                 return
 
-        valid_codes = [c for c in codes if c in prices.columns and prices[c].notna().sum() > 60]
+        valid_codes = [c for c in codes if c in prices.columns and prices[c].notna().sum() > 10]
         if len(valid_codes) < 2:
             st.error("有效資料不足,請確認代號格式或改用其他標的")
             return
 
-        prices = prices[valid_codes].dropna()
+        prices = prices[valid_codes].fillna(method="ffill").dropna()
         annual_ret, annual_std, sharpe, daily_ret = calc_stats(prices)
 
         # ---- 個股統計 ----
