@@ -108,7 +108,7 @@ def main():
             st.error("有效資料不足,請確認代號格式或改用其他標的")
             return
 
-        prices = prices[valid_codes].fillna(method="ffill").dropna()
+        prices = prices[valid_codes].ffill().dropna()
         annual_ret, annual_std, sharpe, daily_ret = calc_stats(prices)
 
         # ---- 個股統計 ----
