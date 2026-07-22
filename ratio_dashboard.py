@@ -56,55 +56,22 @@ def calc_ratios(bs_df, is_df):
 
     # FinMind 資產負債表所有可能的欄位名稱（覆蓋 IFRS 前後格式）
     BS = {
-        "流動資產": [
-            "CurrentAssets", "流動資產", "流動資產合計", "流動資產總計",
-        ],
-        "流動負債": [
-            "CurrentLiabilities", "流動負債", "流動負債合計", "流動負債總計",
-        ],
-        "存貨": [
-            "Inventories", "存貨", "存貨淨額",
-        ],
-        "應收帳款": [
-            "AccountsReceivableNet", "ReceivablesNet",
-            "應收帳款", "應收票據及帳款淨額", "應收帳款淨額",
-        ],
-        "資產總計": [
-            "TotalAssets", "資產總計", "資產合計",
-            "資產總額",
-        ],
-        "負債總計": [
-            "TotalLiabilities", "負債總計", "負債合計",
-            "負債總額",
-            "TotalLiabilitiesAndStockholdersEquity",
-        ],
-        "股東權益": [
-            "TotalEquity", "StockholdersEquity",
-            "權益總計", "股東權益合計", "權益合計",
-            "歸屬於母公司業主之權益合計",
-        ],
+        "流動資產": ["CurrentAssets"],
+        "流動負債": ["CurrentLiabilities"],
+        "存貨":     ["Inventories"],
+        "應收帳款": ["AccountsReceivableNet",
+                     "AccountsReceivableDuefromRelatedPartiesNet"],
+        "資產總計": ["TotalAssets"],
+        "負債總計": ["Liabilities"],
+        "股東權益": ["Equity", "EquityAttributableToOwnersOfParent"],
     }
 
-    # FinMind 損益表所有可能的欄位名稱
     IS = {
-        "營業收入": [
-            "Revenue", "NetSales", "OperatingRevenue",
-            "營業收入合計", "收入合計", "營收", "營業收入",
-        ],
-        "營業成本": [
-            "CostOfGoodsSold", "OperatingCosts",
-            "營業成本合計", "營業成本", "銷貨成本",
-        ],
-        "毛利": [
-            "GrossProfit",
-            "營業毛利（毛損）淨額", "營業毛利", "毛利",
-        ],
-        "淨利": [
-            "NetIncome", "NetIncomeAttributableToParent",
-            "本期淨利（淨損）", "稅後淨利", "淨利（淨損）",
-            "本期稅後淨利", "歸屬於母公司業主之本期淨利（淨損）",
-            "繼續營業單位本期淨利（淨損）",
-        ],
+        "營業收入": ["Revenue"],
+        "營業成本": ["CostOfGoodsSold"],
+        "毛利":     ["GrossProfit"],
+        "淨利":     ["NetIncome", "IncomeAfterTaxes",
+                     "TotalConsolidatedProfitForThePeriod"],
     }
 
     years = sorted(set(
