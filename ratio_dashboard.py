@@ -31,17 +31,10 @@ def fetch_valuation(stock_code, token):
     if df is None or df.empty:
         return {}
     latest = df.iloc[-1]
-    dividend_yield = (
-        latest.get("DividendYield") or
-        latest.get("dividend_yield") or
-        latest.get("yield") or
-        latest.get("Yield")
-    )
     return {
         "本益比 PE": latest.get("PER"),
         "股價淨值比 PB": latest.get("PBR"),
-        "殖利率(%)": dividend_yield,
-        "_per_columns": list(df.columns),
+        "殖利率(%)": latest.get("dividend_yield"),
     }
 
 
@@ -247,9 +240,7 @@ def main():
                     st.write(types)
                 else:
                     st.write("查無資料")
-            with st.expander(f"{code} — 估值(PER)欄位名稱"):
-                per_cols = all_val.get(code, {}).get("_per_columns", [])
-                st.write(per_cols if per_cols else "查無資料")
+
 
     if not all_ratios:
         st.error("所有股票皆查無比率資料，請勾選「顯示欄位診斷」查看原因")
