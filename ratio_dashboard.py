@@ -1,14 +1,5 @@
 # -*- coding: utf-8 -*-
-"""
-財務比率分析與診斷儀表板（多公司比較版）
-資料來源: FinMind 台股公開資料 API
-
-執行: streamlit run ratio_dashboard.py
-套件: pip install streamlit pandas plotly requests
-"""
-
-import os
-import requests
+import os, requests
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
@@ -17,20 +8,13 @@ st.set_page_config(page_title="財務比率分析儀表板", layout="wide")
 
 FINMIND_TOKEN = os.environ.get("FINMIND_TOKEN", "")
 API_URL = "https://api.finmindtrade.com/api/v4/data"
-
-# 每家公司固定顏色
 COLORS = ["#378ADD", "#1D9E75", "#D85A30", "#7F77DD", "#BA7517", "#993556"]
 
 
-# ============== 資料抓取 ==============
 @st.cache_data(ttl=3600)
 def fetch_finmind(dataset, stock_code, token, start_date="2018-01-01"):
-    params = {
-        "dataset": dataset,
-        "data_id": stock_code,
-        "start_date": start_date,
-        "token": token,
-    }
+    params = {"dataset": dataset, "data_id": stock_code,
+              "start_date": start_date, "token": token}
     try:
         resp = requests.get(API_URL, params=params, timeout=15)
         data = resp.json()
@@ -54,7 +38,6 @@ def fetch_valuation(stock_code, token):
     }
 
 
-# ============== 比率計算 ==============
 def get_val(df, year, keys):
     sub = df[df["date"].str.startswith(str(year))]
     for key in keys:
@@ -71,20 +54,57 @@ def calc_ratios(bs_df, is_df):
     if bs_df is None or is_df is None:
         return pd.DataFrame()
 
+    # FinMind 資產負債表所有可能的欄位名稱（覆蓋 IFRS 前後格式）
     BS = {
-        "流動資產": ["流動資產合計", "流動資產總計", "CurrentAssets"],
-        "流動負債": ["流動負債合計", "流動負債總計", "CurrentLiabilities"],
-        "存貨":     ["存貨", "Inventories"],
-        "應收帳款": ["應收票據及帳款淨額", "應收帳款淨額", "應收帳款", "ReceivablesNet"],
-        "資產總計": ["資產總計", "資產合計", "TotalAssets"],
-        "負債總計": ["負債總計", "負債合計", "TotalLiabilities"],
-        "股東權益": ["權益總計", "股東權益合計", "權益合計", "TotalEquity"],
+        "流動資產": [
+            "CurrentAssets", "流動資產", "流動資產合計", "流動資產總計",
+        ],
+        "流動負債": [
+            "CurrentLiabilities", "流動負債", "流動負債合計", "流動負債總計",
+        ],
+        "存貨": [
+            "Inventories", "存貨", "存貨淨額",
+        ],
+        "應收帳款": [
+            "AccountsReceivableNet", "ReceivablesNet",
+            "應收帳款", "應收票據及帳款淨額", "應收帳款淨額",
+        ],
+        "資產總計": [
+            "TotalAssets", "資產總計", "資產合計",
+            "資產總額",
+        ],
+        "負債總計": [
+            "TotalLiabilities", "負債總計", "負債合計",
+            "負債總額",
+            "TotalLiabilitiesAndStockholdersEquity",
+        ],
+        "股東權益": [
+            "TotalEquity", "StockholdersEquity",
+            "權益總計", "股東權益合計", "權益合計",
+            "歸屬於母公司業主之權益合計",
+        ],
     }
+
+    # FinMind 損益表所有可能的欄位名稱
     IS = {
-        "營業收入": ["營業收入合計", "收入合計", "Revenue", "營收"],
-        "營業成本": ["營業成本合計", "營業成本", "CostOfGoodsSold"],
-        "毛利":     ["營業毛利（毛損）淨額", "營業毛利", "GrossProfit"],
-        "淨利":     ["本期淨利（淨損）", "稅後淨利", "淨利（淨損）", "NetIncome"],
+        "營業收入": [
+            "Revenue", "NetSales", "OperatingRevenue",
+            "營業收入合計", "收入合計", "營收", "營業收入",
+        ],
+        "營業成本": [
+            "CostOfGoodsSold", "OperatingCosts",
+            "營業成本合計", "營業成本", "銷貨成本",
+        ],
+        "毛利": [
+            "GrossProfit",
+            "營業毛利（毛損）淨額", "營業毛利", "毛利",
+        ],
+        "淨利": [
+            "NetIncome", "NetIncomeAttributableToParent",
+            "本期淨利（淨損）", "稅後淨利", "淨利（淨損）",
+            "本期稅後淨利", "歸屬於母公司業主之本期淨利（淨損）",
+            "繼續營業單位本期淨利（淨損）",
+        ],
     }
 
     years = sorted(set(
@@ -110,8 +130,7 @@ def calc_ratios(bs_df, is_df):
             try:
                 if a is None or b is None or b == 0: return None
                 return round(a / b, 4)
-            except Exception:
-                return None
+            except Exception: return None
 
         def pp(v):
             return round(v * 100, 2) if v is not None else None
@@ -132,17 +151,16 @@ def calc_ratios(bs_df, is_df):
     return pd.DataFrame(rows).T.sort_index().dropna(how="all")
 
 
-# ============== 診斷 ==============
 def diagnose(latest, val_info):
     msgs = []
     def fval(d, k):
         try: return float(d.get(k)) if d.get(k) is not None else None
-        except Exception: return None
+        except: return None
 
     cr = fval(latest, "流動比率")
     if cr:
         if cr >= 2:     msgs.append(f"流動比率 {cr:.2f} — 短期償債能力充足")
-        elif cr >= 1.5: msgs.append(f"流動比率 {cr:.2f} — 短期償債能力尚可,建議留意流動性")
+        elif cr >= 1.5: msgs.append(f"流動比率 {cr:.2f} — 短期償債能力尚可")
         elif cr >= 1:   msgs.append(f"流動比率 {cr:.2f} — 短期償債能力偏弱")
         else:           msgs.append(f"流動比率 {cr:.2f} — 低於1,短期償債能力不足")
 
@@ -150,7 +168,7 @@ def diagnose(latest, val_info):
     if dr:
         if dr <= 40:    msgs.append(f"負債比率 {dr:.1f}% — 財務結構穩健")
         elif dr <= 60:  msgs.append(f"負債比率 {dr:.1f}% — 財務槓桿中等")
-        else:           msgs.append(f"負債比率 {dr:.1f}% — 財務槓桿偏高,需留意償債壓力")
+        else:           msgs.append(f"負債比率 {dr:.1f}% — 財務槓桿偏高")
 
     roe = fval(latest, "ROE(%)")
     if roe:
@@ -162,16 +180,15 @@ def diagnose(latest, val_info):
     if gm:
         if gm >= 40:    msgs.append(f"毛利率 {gm:.1f}% — 產品獲利能力強")
         elif gm >= 20:  msgs.append(f"毛利率 {gm:.1f}% — 產品獲利能力中等")
-        else:           msgs.append(f"毛利率 {gm:.1f}% — 毛利偏低,需留意成本控管")
+        else:           msgs.append(f"毛利率 {gm:.1f}% — 毛利偏低")
 
     if val_info:
         try:
             pe = float(val_info.get("本益比 PE"))
-            if pe < 15:     msgs.append(f"本益比 {pe:.1f} — 股價相對便宜")
-            elif pe < 25:   msgs.append(f"本益比 {pe:.1f} — 股價合理")
-            else:           msgs.append(f"本益比 {pe:.1f} — 股價相對偏高")
-        except Exception:
-            pass
+            if pe < 15:   msgs.append(f"本益比 {pe:.1f} — 股價相對便宜")
+            elif pe < 25: msgs.append(f"本益比 {pe:.1f} — 股價合理")
+            else:         msgs.append(f"本益比 {pe:.1f} — 股價相對偏高")
+        except: pass
 
     return msgs
 
@@ -182,37 +199,22 @@ def fmt(v):
     return str(v)
 
 
-# ============== 標色輔助 ==============
 def color_cell(val, metric):
-    """根據比率給出顏色標示"""
-    try:
-        v = float(val)
-    except Exception:
-        return val
-
-    good = "#d4edda"
-    warn = "#fff3cd"
-    bad  = "#f8d7da"
-    gtxt = "#155724"
-    wtxt = "#856404"
-    btxt = "#721c24"
-
+    try: v = float(val)
+    except: return val
+    good, warn, bad = "#d4edda", "#fff3cd", "#f8d7da"
+    gtxt, wtxt, btxt = "#155724", "#856404", "#721c24"
     if metric == "流動比率":
-        color = good if v >= 2 else warn if v >= 1 else bad
-        txt   = gtxt if v >= 2 else wtxt if v >= 1 else btxt
+        c, t = (good, gtxt) if v >= 2 else (warn, wtxt) if v >= 1 else (bad, btxt)
     elif metric == "負債比率(%)":
-        color = good if v <= 40 else warn if v <= 60 else bad
-        txt   = gtxt if v <= 40 else wtxt if v <= 60 else btxt
+        c, t = (good, gtxt) if v <= 40 else (warn, wtxt) if v <= 60 else (bad, btxt)
     elif metric in ["ROE(%)", "ROA(%)", "毛利率(%)", "淨利率(%)"]:
-        color = good if v >= 15 else warn if v >= 5 else bad
-        txt   = gtxt if v >= 15 else wtxt if v >= 5 else btxt
+        c, t = (good, gtxt) if v >= 15 else (warn, wtxt) if v >= 5 else (bad, btxt)
     else:
-        return f"{val}"
+        return str(val)
+    return f'<span style="background:{c};color:{t};padding:2px 8px;border-radius:999px;font-size:12px;font-weight:500">{val}</span>'
 
-    return f'<span style="background:{color};color:{txt};padding:2px 8px;border-radius:999px;font-size:12px;font-weight:500">{val}</span>'
 
-
-# ============== 主程式 ==============
 def main():
     st.title("財務比率分析與診斷儀表板")
     st.caption("輸入多家台股代號，自動計算五大類財務比率、多公司橫向比較、歷史趨勢圖")
@@ -230,6 +232,8 @@ def main():
         value="2330, 2317, 2412",
     )
 
+    show_debug = st.checkbox("顯示欄位診斷（若資料有缺失請勾選）", value=False)
+
     if not st.button("開始分析", type="primary"):
         return
 
@@ -238,9 +242,8 @@ def main():
         st.warning("請至少輸入一檔股票代號")
         return
 
-    # 抓取所有公司資料
-    all_ratios = {}
-    all_val    = {}
+    all_ratios, all_val, all_bs, all_is = {}, {}, {}, {}
+
     with st.spinner("查詢中，請稍候..."):
         for code in codes:
             bs_df, _ = fetch_finmind("TaiwanStockBalanceSheet", code, token)
@@ -249,15 +252,33 @@ def main():
             df = calc_ratios(bs_df, is_df)
             if not df.empty:
                 all_ratios[code] = df
-            all_val[code] = val_info
+            all_val[code]  = val_info
+            all_bs[code]   = bs_df
+            all_is[code]   = is_df
+
+    # Debug 欄位顯示
+    if show_debug:
+        st.divider()
+        st.subheader("欄位診斷（Debug）")
+        for code in codes:
+            with st.expander(f"{code} — 資產負債表欄位"):
+                if all_bs.get(code) is not None and not all_bs[code].empty:
+                    types = sorted(all_bs[code]["type"].unique().tolist())
+                    st.write(types)
+                else:
+                    st.write("查無資料")
+            with st.expander(f"{code} — 損益表欄位"):
+                if all_is.get(code) is not None and not all_is[code].empty:
+                    types = sorted(all_is[code]["type"].unique().tolist())
+                    st.write(types)
+                else:
+                    st.write("查無資料")
 
     if not all_ratios:
-        st.error("所有股票皆查無資料，請確認代號或稍後再試")
+        st.error("所有股票皆查無比率資料，請勾選「顯示欄位診斷」查看原因")
         return
 
-    # =========================================================
-    # 區塊一：最新一期橫向比較表
-    # =========================================================
+    # ========== 區塊一：橫向比較表 ==========
     st.divider()
     st.subheader("最新一期比較")
 
@@ -277,23 +298,17 @@ def main():
                 latest_rows[code][k] = v
 
     col_names = list(latest_rows.keys())
-    table_data = {"比率": compare_metrics + val_metrics}
-    for code in col_names:
-        vals = []
-        for m in compare_metrics + val_metrics:
-            v = latest_rows.get(code, {}).get(m)
-            vals.append(fmt(v))
-        table_data[code] = vals
+    header_cells = "<th style='padding:8px 12px;font-weight:500;font-size:13px;color:#888'>比率</th>"
+    for i, code in enumerate(col_names):
+        color = COLORS[i % len(COLORS)]
+        header_cells += f"<th style='padding:8px 12px;font-weight:500;font-size:13px;color:{color};text-align:center'>{code}</th>"
 
-    compare_df = pd.DataFrame(table_data)
-
-    # 用 HTML 渲染帶顏色的比較表
     html_rows = ""
-    for _, row in compare_df.iterrows():
-        metric = row["比率"]
-        cells = f"<td style='color:var(--text-muted,#888);font-size:13px;padding:8px 12px'>{metric}</td>"
+    for metric in compare_metrics + val_metrics:
+        cells = f"<td style='color:#888;font-size:13px;padding:8px 12px'>{metric}</td>"
         for code in col_names:
-            val = row.get(code, "—")
+            v = latest_rows.get(code, {}).get(metric)
+            val = fmt(v)
             if metric in ["流動比率","負債比率(%)","ROE(%)","ROA(%)","毛利率(%)","淨利率(%)"]:
                 cell_content = color_cell(val, metric)
             else:
@@ -301,46 +316,31 @@ def main():
             cells += f"<td style='padding:8px 12px;text-align:center;font-size:13px'>{cell_content}</td>"
         html_rows += f"<tr style='border-bottom:0.5px solid #eee'>{cells}</tr>"
 
-    header_cells = "<th style='padding:8px 12px;font-weight:500;font-size:13px;color:#888'>比率</th>"
-    for i, code in enumerate(col_names):
-        color = COLORS[i % len(COLORS)]
-        header_cells += f"<th style='padding:8px 12px;font-weight:500;font-size:13px;color:{color};text-align:center'>{code}</th>"
-
-    html_table = f"""
+    st.markdown(f"""
     <div style="overflow-x:auto;border:0.5px solid #e0e0e0;border-radius:12px;margin-bottom:1rem">
       <table style="width:100%;border-collapse:collapse">
-        <thead>
-          <tr style="border-bottom:1px solid #e0e0e0;background:#fafafa">{header_cells}</tr>
-        </thead>
+        <thead><tr style="border-bottom:1px solid #e0e0e0;background:#fafafa">{header_cells}</tr></thead>
         <tbody>{html_rows}</tbody>
       </table>
     </div>
-    """
-    st.markdown(html_table, unsafe_allow_html=True)
-
+    """, unsafe_allow_html=True)
     st.caption("🟢 表現良好　🟡 中等　🔴 需留意")
 
-    # =========================================================
-    # 區塊二：個股診斷
-    # =========================================================
+    # ========== 區塊二：個股診斷 ==========
     st.divider()
     st.subheader("個股診斷")
-
     diag_cols = st.columns(len(all_ratios))
     for i, (code, df) in enumerate(all_ratios.items()):
         with diag_cols[i]:
             color = COLORS[i % len(COLORS)]
             st.markdown(f"<h4 style='color:{color}'>{code}</h4>", unsafe_allow_html=True)
             msgs = diagnose(df.iloc[-1].to_dict(), all_val.get(code, {}))
-            if msgs:
-                for msg in msgs:
-                    st.markdown(f"- {msg}")
-            else:
+            for msg in msgs:
+                st.markdown(f"- {msg}")
+            if not msgs:
                 st.write("資料不足")
 
-    # =========================================================
-    # 區塊三：多公司趨勢折線圖
-    # =========================================================
+    # ========== 區塊三：折線趨勢圖 ==========
     st.divider()
     st.subheader("歷史趨勢比較")
 
@@ -358,7 +358,6 @@ def main():
             )
             if not has_data:
                 continue
-
             fig = go.Figure()
             for i, (code, df) in enumerate(all_ratios.items()):
                 if metric not in df.columns:
@@ -366,14 +365,10 @@ def main():
                 vals = pd.to_numeric(df[metric], errors="coerce")
                 if vals.notna().any():
                     fig.add_trace(go.Scatter(
-                        x=df.index,
-                        y=vals,
-                        mode="lines+markers",
-                        name=code,
+                        x=df.index, y=vals, mode="lines+markers", name=code,
                         line=dict(color=COLORS[i % len(COLORS)], width=2),
                         marker=dict(size=7),
                     ))
-
             fig.update_layout(
                 title=dict(text=f"{cat_name}｜{metric}", font=dict(size=14)),
                 xaxis_title="年度",
@@ -384,37 +379,36 @@ def main():
             )
             st.plotly_chart(fig, use_container_width=True)
 
-    # =========================================================
-    # 區塊四：長條圖（各年度多公司並排）
-    # =========================================================
+    # ========== 區塊四：長條圖 ==========
     st.divider()
     st.subheader("各年度並排比較")
-
-    bar_metrics = ["毛利率(%)", "ROE(%)", "負債比率(%)"]
-    for metric in bar_metrics:
+    for metric in ["毛利率(%)", "ROE(%)", "負債比率(%)"]:
+        has_data = any(
+            metric in df.columns and pd.to_numeric(df[metric], errors="coerce").notna().any()
+            for df in all_ratios.values()
+        )
+        if not has_data:
+            continue
         fig = go.Figure()
         for i, (code, df) in enumerate(all_ratios.items()):
             if metric not in df.columns:
                 continue
             vals = pd.to_numeric(df[metric], errors="coerce")
             fig.add_trace(go.Bar(
-                name=code,
-                x=df.index,
-                y=vals,
+                name=code, x=df.index, y=vals,
                 marker_color=COLORS[i % len(COLORS)],
             ))
         fig.update_layout(
             barmode="group",
             title=dict(text=metric, font=dict(size=14)),
-            xaxis_title="年度",
-            yaxis_title="%",
+            xaxis_title="年度", yaxis_title="%",
             legend=dict(orientation="h", yanchor="bottom", y=1.05, xanchor="right", x=1),
             margin=dict(l=10, r=10, t=50, b=10),
             height=300,
         )
         st.plotly_chart(fig, use_container_width=True)
 
-    st.caption("⚠️ 本工具為教學示範用途，不構成投資建議。資料來源：FinMind 台股公開資料。")
+    st.caption("⚠️ 本工具為教學示範用途，不構成投資建議。")
 
 
 if __name__ == "__main__":
