@@ -288,7 +288,7 @@ def show_company(stock_code, token):
             if not available:
                 continue
             st.markdown(f"*{cat_name}*")
-            sub = df[available].applymap(lambda x: str(x) if x is not None else "—")
+            sub = df[available].map(lambda x: str(x) if x is not None else "—")
             st.dataframe(sub, use_container_width=True)
 
     if val_info:
